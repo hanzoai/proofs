@@ -54,15 +54,23 @@ def delegate (parent : AuthLevel) (childTools childBudget : Nat) : AuthLevel :=
   , budget := min childBudget parent.budget -- cap at parent budget
   , depth := parent.depth - 1 }             -- decrement depth
 
-/-- Delegated tools are subset of parent -/
+/-- Idempotence of bitwise AND on naturals. -/
+private lemma land_idem (n : Nat) : n &&& n = n := by
+  apply Nat.eq_of_testBit_eq
+  intro i
+  simp [Nat.testBit_land]
+
+/-- Delegated tools are subset of parent: `(ct &&& pt) &&& pt = ct &&& pt`
+    by associativity + idempotence of `&&&`. -/
 theorem delegate_tools_subset (parent : AuthLevel) (ct cb : Nat) :
     (delegate parent ct cb).tools &&& parent.tools = (delegate parent ct cb).tools := by
-  simp [delegate, Nat.and_assoc, Nat.and_self]
+  show (ct &&& parent.tools) &&& parent.tools = ct &&& parent.tools
+  rw [Nat.land_assoc, land_idem]
 
-/-- Delegated budget doesn't exceed parent -/
+/-- Delegated budget doesn't exceed parent. -/
 theorem delegate_budget_bounded (parent : AuthLevel) (ct cb : Nat) :
     (delegate parent ct cb).budget ≤ parent.budget := by
-  simp [delegate]
+  unfold delegate
   exact Nat.min_le_right cb parent.budget
 
 /-- Delegated depth is strictly less than parent -/
