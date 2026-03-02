@@ -14,7 +14,7 @@
   - Identity binding: agent ↔ wallet is 1:1
   - Signing authority: agent signs with its bound key
   - Spending limits: agent has a per-session budget
-  - Attestation: agent identity is in every discharge proof
+  - Over-budget rejected: overspend is a no-op
 -/
 
 import Mathlib.Data.Nat.Defs
@@ -22,59 +22,77 @@ import Mathlib.Tactic
 
 namespace Agent.Identity
 
-/-- Agent identity -/
+/-- Agent identity: unique id, bound wallet public key, OIDC token hash,
+    and a per-session spending budget (denominated in $AI). -/
 structure AgentIdentity where
-  agentId : Nat        -- unique agent identifier
-  walletPK : Nat       -- bound wallet public key
-  iamToken : Nat       -- OIDC token hash
-  sessionBudget : Nat  -- max spend per session (in $AI)
+  agentId       : Nat
+  walletPK      : Nat
+  iamToken      : Nat
+  sessionBudget : Nat
   deriving DecidableEq, Repr
 
-/-- Spending record -/
+/-- Cumulative spending record for an identity within a session. -/
 structure SpendRecord where
   identity : AgentIdentity
-  spent : Nat
+  spent    : Nat
   deriving Repr
 
-/-- Can the agent spend more? -/
-def canSpend (r : SpendRecord) (amount : Nat) : Bool :=
+/-- Permission predicate: the agent has room for another spend. -/
+def canSpend (r : SpendRecord) (amount : Nat) : Prop :=
   r.spent + amount ≤ r.identity.sessionBudget
 
-/-- Execute a spend -/
+instance (r : SpendRecord) (amount : Nat) : Decidable (canSpend r amount) := by
+  unfold canSpend; exact inferInstance
+
+/-- Execute a spend: if within budget, record it; otherwise no-op. -/
 def spend (r : SpendRecord) (amount : Nat) : SpendRecord :=
   if canSpend r amount then
     { r with spent := r.spent + amount }
   else r
 
-/-- BUDGET ENFORCEMENT: Spending never exceeds budget -/
-theorem spend_within_budget (r : SpendRecord) (amount : Nat) :
+/-- **Theorem (budget enforcement):** cumulative spending never exceeds
+    the session budget, given the prior-state invariant that the
+    record is already within budget. This invariant is trivially
+    maintained: `freshSession` starts at 0, and every subsequent
+    `spend` preserves it (this theorem is the inductive step). -/
+theorem spend_within_budget (r : SpendRecord) (amount : Nat)
+    (hprior : r.spent ≤ r.identity.sessionBudget) :
     (spend r amount).spent ≤ r.identity.sessionBudget := by
-  simp [spend, canSpend]
-  split <;> omega
+  unfold spend
+  by_cases h : canSpend r amount
+  · simp [h]; exact h
+  · simp [h]; exact hprior
 
-/-- OVER-BUDGET REJECTED: Overspend is a no-op -/
+/-- **Theorem (over-budget rejected):** an overspend is a no-op. -/
 theorem overspend_rejected (r : SpendRecord) (amount : Nat)
     (h : r.spent + amount > r.identity.sessionBudget) :
     spend r amount = r := by
-  simp [spend, canSpend, Nat.not_le.mpr (by omega : ¬(r.spent + amount ≤ r.identity.sessionBudget))]
+  unfold spend
+  have hnot : ¬ canSpend r amount := by unfold canSpend; omega
+  simp [hnot]
 
-/-- MONOTONE: Spent amount only increases -/
+/-- **Theorem (monotone spending):** the cumulative spent amount is
+    non-decreasing under every `spend` call. -/
 theorem spent_monotone (r : SpendRecord) (amount : Nat) :
-    (spend r amount).spent ≥ r.spent := by
-  simp [spend, canSpend]; split <;> omega
+    r.spent ≤ (spend r amount).spent := by
+  unfold spend
+  by_cases h : canSpend r amount
+  · simp [h]
+  · simp [h]
 
-/-- IDENTITY BINDING: Same wallet PK → same signing authority -/
+/-- **Theorem (identity binding):** identical wallet public keys give
+    identical signing authority (reflexive observation). -/
 theorem identity_determines_signer (a1 a2 : AgentIdentity)
-    (h : a1.walletPK = a2.walletPK) :
-    a1.walletPK = a2.walletPK := h
+    (h : a1.walletPK = a2.walletPK) : a1.walletPK = a2.walletPK := h
 
-/-- FRESH SESSION: New agent starts with zero spent -/
-def freshSession (id : AgentIdentity) : SpendRecord :=
-  ⟨id, 0⟩
+/-- A fresh session for an identity: nothing spent yet. -/
+def freshSession (id : AgentIdentity) : SpendRecord := ⟨id, 0⟩
 
+/-- **Theorem:** any amount within budget is spendable from a fresh
+    session. -/
 theorem fresh_can_spend (id : AgentIdentity) (amount : Nat)
     (h : amount ≤ id.sessionBudget) :
-    canSpend (freshSession id) amount = true := by
-  simp [freshSession, canSpend, h]
+    canSpend (freshSession id) amount := by
+  unfold canSpend freshSession; simpa using h
 
 end Agent.Identity

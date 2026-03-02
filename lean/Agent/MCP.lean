@@ -9,67 +9,56 @@
   - hanzo/agents: agent permission configuration
 
   Properties:
-  - Permission check is monotone
+  - Permission check is monotone under subset
   - Empty permissions deny everything
   - Full permissions allow everything
+
+  Model: permissions are represented as a `Finset` of tool identifiers,
+  which gives us lattice structure for free (subset / meet / empty) and
+  avoids the Lean-4-version-sensitive bitwise lemmas.
 -/
 
-import Mathlib.Data.Nat.Defs
-import Mathlib.Data.List.Basic
+import Mathlib.Data.Finset.Basic
+import Mathlib.Data.Finset.Lattice.Basic
 import Mathlib.Tactic
 
 namespace Agent.MCP
 
-/-- Permission set (represented as a bitmask for simplicity) -/
-structure Permissions where
-  mask : Nat
-  deriving DecidableEq, Repr
+/-- A tool is identified by a natural-number index. -/
+abbrev ToolId := Nat
 
-/-- No permissions -/
-def Permissions.none : Permissions := ⟨0⟩
+/-- Permission set: the set of tool ids the holder may call. -/
+abbrev Permissions := Finset ToolId
 
-/-- Full permissions -/
-def Permissions.full : Permissions := ⟨0xFFF⟩  -- 12 tool bits
+/-- No permissions: deny everything. -/
+def Permissions.none : Permissions := ∅
 
-/-- Permission subset: a ≤ b iff a's bits are subset of b's -/
-def Permissions.subset (a b : Permissions) : Prop :=
-  a.mask &&& b.mask = a.mask
+-- Permission subset ordering is inherited from `Finset.instLE`.
+-- `Permissions.subset a b ↔ a ⊆ b` holds by definition.
 
-instance : LE Permissions where le := Permissions.subset
+/-- A principal *has* tool `t` iff `t ∈ p`. -/
+def Permissions.has (p : Permissions) (t : ToolId) : Prop := t ∈ p
 
-/-- Check if a specific tool (bit position) is permitted -/
-def Permissions.has (p : Permissions) (toolBit : Nat) : Bool :=
-  (p.mask &&& (1 <<< toolBit)) != 0
+/-- **Theorem:** `Permissions.none` is the bottom of the lattice. -/
+theorem none_le_all (p : Permissions) : Permissions.none ⊆ p := by
+  simp [Permissions.none]
 
-/-- Meet (intersection) of permissions -/
-def Permissions.meet (a b : Permissions) : Permissions :=
-  ⟨a.mask &&& b.mask⟩
+/-- **Theorem:** meet (intersection) is a lower bound on the left. -/
+theorem meet_le_left (a b : Permissions) : a ∩ b ⊆ a :=
+  Finset.inter_subset_left
 
-instance : Min Permissions where min := Permissions.meet
+/-- **Theorem:** meet is a lower bound on the right. -/
+theorem meet_le_right (a b : Permissions) : a ∩ b ⊆ b :=
+  Finset.inter_subset_right
 
-/-- None is bottom: no permissions ≤ anything -/
-theorem none_le_all (p : Permissions) : Permissions.none ≤ p := by
-  simp [LE.le, Permissions.subset, Permissions.none, Nat.zero_and]
-
-/-- Meet is lower bound (left) -/
-theorem meet_mask_le_left (a b : Permissions) :
-    (min a b).mask ≤ a.mask := by
-  simp [Min.min, Permissions.meet]
-  exact Nat.and_le_left a.mask b.mask
-
-/-- Meet is lower bound (right) -/
-theorem meet_mask_le_right (a b : Permissions) :
-    (min a b).mask ≤ b.mask := by
-  simp [Min.min, Permissions.meet]
-  exact Nat.and_le_right a.mask b.mask
-
-/-- Granting fewer permissions is monotone safe -/
-theorem fewer_permissions_safe (parent child : Permissions)
-    (h : child.mask ≤ parent.mask)
-    (toolBit : Nat)
-    (hc : child.has toolBit = true) :
-    parent.has toolBit = true := by
-  simp [Permissions.has] at *
-  omega
+/-- **Theorem (monotone delegation):** if a child holds a subset of the
+    parent's permissions, every tool the child may call is one the
+    parent may also call. This is the core safety property for
+    capability-style permission delegation. -/
+theorem fewer_permissions_safe
+    (parent child : Permissions) (h : child ⊆ parent)
+    (t : ToolId) (hc : child.has t) : parent.has t := by
+  unfold Permissions.has at *
+  exact h hc
 
 end Agent.MCP
