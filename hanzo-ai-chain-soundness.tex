@@ -1,0 +1,539 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage[margin=1in]{geometry}
+
+\hypersetup{colorlinks=true,linkcolor=black,citecolor=blue,urlcolor=blue}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}{Definition}
+\newtheorem{remark}{Remark}
+\newtheorem{proposition}[theorem]{Proposition}
+
+\title{Hanzo AI Chain Soundness\\
+{\large Attestation, Provenance, and Identity Binding for AIVM
+Inference Receipts}}
+\author{Hanzo AI\\
+\texttt{research@hanzo.ai}}
+\date{Spec freeze: 2026-04-15 \\ Effective: 2026-04-20}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+The Hanzo AI Chain is the Lux A-Chain (AIVM) deployed under the Hanzo
+brand. It records inference receipts, model-provenance commitments,
+agent-identity bindings, and TEE attestation quotes. We prove
+soundness of the AIVM cert pipeline by composition with QuasarCert
+(Theorem 7.5 of \cite{quasar-cert}) and add four AI-specific lemmas:
+(i)~model-hash binding, (ii)~agent-DID binding, (iii)~TEE attestation
+chain integrity, (iv)~inference-receipt non-malleability.  We then
+state and prove the soundness theorem of the Hanzo AI Chain cert
+pipeline: an inference receipt finalised on the A-Chain commits to a
+unique tuple
+$(\mathsf{model\_hash}, \mathsf{agent\_did}, \mathsf{quote},
+\mathsf{input\_hash}, \mathsf{output\_hash})$ that no PPT or QPT
+adversary can substitute except with negligible probability.
+\end{abstract}
+
+\tableofcontents
+
+%% ==================================================================
+\section{Background}
+\label{sec:bg}
+%% ==================================================================
+
+The Lux A-Chain is the AI / Attestation chain in the LP-134 chain
+topology~\cite{lp134}. Its VM is named \emph{AIVM} (deliberately
+distinct from upstream Avalanche's ``AVM''; see
+\cite{taxonomy}). Hanzo runs the A-Chain under the Hanzo brand as the
+\emph{Hanzo AI Chain}.
+
+The A-Chain stores three classes of records:
+\begin{enumerate}[nosep]
+  \item \textbf{TEE attestation quotes} (LP-127), bound to a
+        \texttt{quote\_root} on the A-Chain state;
+  \item \textbf{AI model registry} (LP-130), bound to a
+        \texttt{model\_root} via Merkle commitment;
+  \item \textbf{Inference receipts} bound to both roots and to the
+        agent identity via DID.
+\end{enumerate}
+
+%% ==================================================================
+\section{Definitions}
+\label{sec:def}
+%% ==================================================================
+
+\begin{definition}[A-Chain certificate subject]
+\label{def:a-subj}
+The Lux LP-105 certificate subject for the A-Chain is
+\[
+  \mathsf{subj}_A = \mathsf{chain\_id}\,\|\,\mathsf{epoch}\,\|\,
+                    \mathsf{round}\,\|\,A,
+\]
+where $A = \texttt{achain\_state\_root}$ is the Merkle root of the
+A-Chain key/value store (LP-105 Def.~6.1, restated in
+\cite{quasar-cert} Def.~1).
+\end{definition}
+
+\begin{definition}[Inference receipt]
+\label{def:receipt}
+An \emph{inference receipt} on the Hanzo AI Chain is a tuple
+\[
+  R = (\mathsf{model\_hash},\;
+       \mathsf{agent\_did},\;
+       \mathsf{quote},\;
+       \mathsf{input\_hash},\;
+       \mathsf{output\_hash},\;
+       \mathsf{ts})
+\]
+where:
+\begin{itemize}[nosep]
+  \item $\mathsf{model\_hash}$ is the SHA3-256 hash of the model
+        weights file as registered in the A-Chain model registry;
+  \item $\mathsf{agent\_did}$ is a DID of form \texttt{did:lux:agent:<id>};
+  \item $\mathsf{quote}$ is a TEE attestation (Nitro Enclave, AMD
+        SEV-SNP, or Intel TDX) over the model+inference workload;
+  \item $\mathsf{input\_hash}, \mathsf{output\_hash}$ are SHA3-256
+        commitments of the I/O.
+\end{itemize}
+The receipt is committed via Merkle inclusion in
+$\texttt{achain\_state\_root}$ for some block $b$.
+\end{definition}
+
+\begin{definition}[AI threat model]
+\label{def:adv}
+Adversary $\mathcal{A}$ is a non-uniform PPT (or QPT) algorithm that
+controls a Byzantine stake fraction $f < 1/3$ and additionally
+controls an arbitrary subset of agent operators. $\mathcal{A}$ can
+register fraudulent models, request inferences from honest agents,
+and observe all on-chain state. $\mathcal{A}$ \emph{wins} if it
+produces an A-Chain block with QuasarCert-verified
+$\mathsf{subj}_A^\star$ that includes an inference receipt $R^\star$
+attributing an inference to model $m$ when $m$ was not actually
+executed under a valid TEE quote bound to $\mathsf{agent\_did}$.
+\end{definition}
+
+%% ==================================================================
+\section{AI-specific lemmas}
+\label{sec:lemmas}
+%% ==================================================================
+
+\begin{lemma}[Model-hash binding]
+\label{lem:model-hash}
+If the model registry contract (LP-130) is collision-resistant
+(SHA3-256), and an inference receipt $R$ verifies on-chain, then
+$R.\mathsf{model\_hash}$ is bound to exactly one registered model
+entry.
+\end{lemma}
+
+\begin{proof}
+The model registry stores a Merkle tree with leaves
+$(\mathsf{model\_hash}, \mathsf{owner}, \mathsf{license})$. The root
+is committed inside the A-Chain state root $A$, which is in turn
+committed inside $\mathsf{subj}_A$ (Def.~\ref{def:a-subj}). Forging a
+distinct registry entry for the same $\mathsf{model\_hash}$ requires a
+SHA3-256 collision; this is bounded by
+$2^{-128}$~\cite{nist-hash}. The receipt-to-registry binding is via
+Merkle inclusion; opening to a wrong leaf requires forging a Merkle
+path, also reduces to SHA3-256 collision resistance.
+\end{proof}
+
+\begin{lemma}[Agent-DID binding]
+\label{lem:agent-did}
+The DID document for $\mathsf{agent\_did}$ is published on the
+A-Chain attestation registry and signed with the agent's identity
+key under the triple-hybrid scheme of
+\cite[Crypto/Hybrid.lean]{lux-lean} (Ed25519 + ML-DSA + SLH-DSA).
+A receipt verifying with $\mathsf{agent\_did}$ implies the agent's
+authorisation under all three schemes simultaneously.
+\end{lemma}
+
+\begin{proof}
+Triple-hybrid identity sig requires forging \emph{all three}
+schemes. By \cite[Theorem 1]{lux-lean-hybrid}, classical DL on
+Curve25519, plus MLWE+MSIS for ML-DSA, plus hash-only assumptions
+for SLH-DSA, are independent. Forging the hybrid reduces to
+forging all three; advantage is bounded by the minimum of the
+individual advantages, all negligible (one classical, two PQ).
+\end{proof}
+
+\begin{lemma}[TEE attestation chain integrity]
+\label{lem:tee}
+Let $\mathsf{quote}$ be a Nitro / SEV-SNP / TDX attestation chain
+verified by the LP-127 attestation pre-compile. If the quote
+verification accepts, then with overwhelming probability the
+inference was executed inside a TEE matching the model hash and
+public key bound by $\mathsf{quote}$.
+\end{lemma}
+
+\begin{proof}
+Nitro Enclaves attestation is a Cose\_Sign1 over a PCR-bound document
+signed by AWS root keys; SEV-SNP and TDX are equivalent in structure.
+The LP-127 pre-compile verifies the signature chain to the vendor
+root, which is registered in the A-Chain attestation root. Forging a
+quote requires either (a) compromising the vendor root key, or (b)
+violating the TEE boundary. Both are out of scope for the consensus
+adversary by Def.~\ref{def:adv}; we assume them as standard. (See
+\cite{lp127} for the formal vendor-root trust assumption.)
+\end{proof}
+
+\begin{lemma}[Inference-receipt non-malleability]
+\label{lem:nonmall}
+If $R = (\mathsf{model\_hash}, \mathsf{agent\_did}, \mathsf{quote},
+\mathsf{input\_hash}, \mathsf{output\_hash}, \mathsf{ts})$ is finalised
+in A-Chain block $b$, no adversary can produce a distinct
+$R' \neq R$ that hashes to the same Merkle leaf.
+\end{lemma}
+
+\begin{proof}
+The leaf is $\mathsf{SHA3\text{-}256}(R)$; collision resistance gives
+the result.
+\end{proof}
+
+%% ==================================================================
+\section{Hanzo AI Chain soundness theorem}
+\label{sec:soundness}
+%% ==================================================================
+
+\begin{theorem}[Hanzo AI Chain cert pipeline soundness]
+\label{thm:soundness}
+Suppose
+\begin{itemize}[nosep]
+  \item the QuasarCert system is sound (Theorem 7.5 of
+        \cite{quasar-cert});
+  \item SHA3-256 is collision-resistant;
+  \item the triple-hybrid identity sig is unforgeable
+        (\cite{lux-lean-hybrid});
+  \item the LP-127 attestation pre-compile faithfully implements its
+        vendor root checks.
+\end{itemize}
+Then for every PPT (resp. QPT) adversary $\mathcal{A}$ as in
+Def.~\ref{def:adv},
+\[
+  \Pr[\mathcal{A} \text{ wins}] \;\leq\;
+  \mathsf{Adv}^{\mathrm{forge}}_{\mathrm{QuasarCert}} +
+  \mathsf{Adv}^{\mathrm{coll}}_{\mathrm{SHA3}} +
+  \mathsf{Adv}^{\mathrm{forge}}_{\mathrm{Hybrid}} +
+  \mathsf{Adv}^{\mathrm{TEE}}.
+\]
+\end{theorem}
+
+\begin{proof}
+We compose Lemmas~\ref{lem:model-hash}--\ref{lem:nonmall}. Suppose
+$\mathcal{A}$ wins by producing a fraudulent receipt $R^\star$
+finalised in block $b^\star$. Two cases:
+
+\paragraph{Case 1: $\mathsf{subj}_A^\star$ was not endorsed by an
+honest quorum.}
+Then $\mathcal{A}$ forged a QuasarCert; advantage at most
+$\mathsf{Adv}^{\mathrm{forge}}_{\mathrm{QuasarCert}}$.
+
+\paragraph{Case 2: $\mathsf{subj}_A^\star$ was endorsed.}
+Then $R^\star$ is attested by 2/3 of stake. The receipt's
+$\mathsf{agent\_did}$ binds via Lemma~\ref{lem:agent-did}; substituting
+agent identity reduces to forging the triple-hybrid sig, advantage
+$\mathsf{Adv}^{\mathrm{forge}}_{\mathrm{Hybrid}}$.
+The receipt's $\mathsf{model\_hash}$ binds via
+Lemma~\ref{lem:model-hash}, advantage
+$\mathsf{Adv}^{\mathrm{coll}}_{\mathrm{SHA3}}$ to forge.
+The receipt's $\mathsf{quote}$ binds via Lemma~\ref{lem:tee},
+advantage $\mathsf{Adv}^{\mathrm{TEE}}$.
+Lemma~\ref{lem:nonmall} rules out malleability.
+By union bound, the total adversary advantage is the stated sum.
+All four terms are negligible under the stated assumptions.
+\end{proof}
+
+\begin{corollary}[Receipt non-repudiation]
+\label{cor:nonrep}
+A finalised inference receipt cannot be repudiated by the agent
+operator: the triple-hybrid sig binds the operator's keys to the
+receipt content with overwhelming probability.
+\end{corollary}
+
+%% ==================================================================
+\section{GPU residency for AIVM}
+\label{sec:gpu}
+%% ==================================================================
+
+LP-137~\cite{lp137} mandates GPU-residency for high-throughput
+verification. The A-Chain inherits this invariant directly: receipt
+verification under Quasar 3.0 is offloaded to GPU validators when
+LP-132's GPU adapter is enabled (\cite{lp132}). No additional proof
+is needed in this paper; we cite the LP-132/137 GPU-residency lemmas
+as a shared dependency.
+
+\begin{remark}[Inference cost vs. settlement cost]
+GPU-residency applies to consensus verification, not inference
+itself. Inference is performed off-chain in TEE; only the
+attestation quote and receipt are recorded.  The cost model
+distinguishes \emph{compute} (off-chain, billed via Hanzo Commerce)
+from \emph{settlement} (on-chain, billed via Lux gas + Liquidity
+Protocol margin).
+\end{remark}
+
+%% ==================================================================
+\section{Worked example: end-to-end inference}
+\label{sec:example}
+%% ==================================================================
+
+Consider an inference call:
+$\mathrm{user} \to \mathrm{Hanzo SDK} \to \mathrm{agent} \to
+ \mathrm{TEE} \to \mathrm{output}$.
+
+\begin{enumerate}[nosep]
+  \item \textbf{Discovery.} The Hanzo SDK reads the A-Chain
+        model registry, picks model $m$ with hash $h_m$ and the
+        cheapest registered agent $a$ with attestation root in
+        the recent A-Chain attestation tree.
+  \item \textbf{Request.} The user's prompt is sent (encrypted to
+        the agent's enclave key) to agent $a$.
+  \item \textbf{TEE execution.} Agent $a$ executes inference inside
+        Nitro/SEV-SNP/TDX. The TEE produces the output and a
+        signed quote $\mathsf{quote}$ over the workload+pubkey.
+  \item \textbf{Receipt.} Agent $a$ assembles
+        $R = (h_m, \mathrm{did}_a, \mathsf{quote},
+             H(\mathrm{prompt}), H(o), \mathsf{ts})$ and signs
+        with its triple-hybrid identity key.
+  \item \textbf{Submission.} Agent $a$ submits $R$ to the A-Chain
+        block proposer; the block records $R$ inside
+        $\texttt{achain\_state\_root}$.
+  \item \textbf{Finality.} Block $b$ commits with QuasarCert
+        $\mathcal{C}_b$.
+\end{enumerate}
+
+By Theorem~\ref{thm:soundness}, no party --- including the agent
+operator --- can subsequently fabricate or alter the receipt; the
+output is provably tied to the registered model and the agent's
+DID.
+
+%% ==================================================================
+\section{Storage layout}
+\label{sec:layout}
+%% ==================================================================
+
+\begin{table}[h]
+\centering
+\caption{A-Chain storage cells relevant to the receipt pipeline.}
+\begin{tabular}{lll}
+\toprule
+Cell & Type & Size \\
+\midrule
+$\texttt{model\_root}$        & \texttt{bytes32} (Merkle)   & 32 B \\
+$\texttt{quote\_root}$        & \texttt{bytes32} (Merkle)   & 32 B \\
+$\texttt{agent\_root}$        & \texttt{bytes32} (Merkle)   & 32 B \\
+$\texttt{receipt\_log}$       & growable list of $H(R)$     & 32 B per entry \\
+$\texttt{achain\_state\_root}$ & root over above            & 32 B \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The QuasarCert subject $\mathsf{subj}_A$ commits to
+$\texttt{achain\_state\_root}$, which inductively commits to the
+four sub-roots above.
+
+%% ==================================================================
+\section{Detailed reduction: lemma \ref{lem:model-hash}}
+\label{sec:reduct-model}
+%% ==================================================================
+
+We expand the proof of Lemma~\ref{lem:model-hash} into a concrete
+hybrid argument.
+
+\paragraph{Game $\mathsf{G}_0$.} The real game.  The adversary
+$\mathcal{A}$ submits a receipt $R^\star$ and a Merkle path
+$\pi^\star$ opening to a model registry leaf
+$(\mathsf{model\_hash}^\star, \mathsf{owner}^\star,
+  \mathsf{license}^\star)$ where the model registered for
+$\mathsf{model\_hash}^\star$ has different
+$(\mathsf{owner}, \mathsf{license})$ on the canonical chain.
+
+\paragraph{Game $\mathsf{G}_1$.} Identical to $\mathsf{G}_0$ except
+that the simulator extracts the colliding
+$\mathsf{model\_hash}^\star$ from the path and outputs it as a
+SHA3-256 collision claim.
+
+\paragraph{Reduction.} A successful $\mathcal{A}$ in
+$\mathsf{G}_0$ implies (a)~the chain's Merkle tree contains a leaf
+with $\mathsf{model\_hash}^\star$ and the canonical
+$(\mathsf{owner}, \mathsf{license})$, and (b)~$\mathcal{A}$ produced
+a path opening to a leaf with the same
+$\mathsf{model\_hash}^\star$ but different metadata. The two leaves
+hash to the same Merkle node only if a SHA3-256 collision occurs at
+some level. The simulator outputs the colliding pre-images.
+
+\paragraph{Probability.} $\Pr[\mathcal{A}\text{ wins }\mathsf{G}_0]
+\leq \Pr[\mathsf{coll}_{\mathrm{SHA3}}] \leq Q^2 / 2^{256}$ for $Q$
+hash queries.  At $Q = 2^{60}$ (one quintillion queries),
+$Q^2 / 2^{256} = 2^{120 - 256} = 2^{-136}$, vastly below the
+$2^{-128}$ threshold.
+
+%% ==================================================================
+\section{Detailed reduction: lemma \ref{lem:agent-did}}
+\label{sec:reduct-did}
+%% ==================================================================
+
+The triple-hybrid identity scheme $\Sigma_3 =
+(\Sigma_{\mathrm{Ed25519}}, \Sigma_{\mathrm{ML\text{-}DSA}},
+ \Sigma_{\mathrm{SLH\text{-}DSA}})$ accepts a triple
+$(\sigma_1, \sigma_2, \sigma_3)$ iff all three component schemes
+verify under the corresponding component public keys.
+
+\paragraph{Adversary advantage decomposition.}
+$\mathsf{Adv}^{\mathrm{forge}}_{\Sigma_3}(\mathcal{A}) =
+ \Pr[\Sigma_3.\mathsf{Verify}(\mathsf{pk}, m, \sigma_1^\star,
+                              \sigma_2^\star, \sigma_3^\star) = 1]$
+where $m$ was never queried.  By definition of $\Sigma_3$ all three
+component verifies pass; hence $\mathcal{A}$ produced forgeries for
+\emph{each} of the three components on the same $m$.
+
+\paragraph{Reduction to the minimum.}
+A simpler bound: $\mathsf{Adv}^{\mathrm{forge}}_{\Sigma_3} \leq
+\min(\mathsf{Adv}_{\mathrm{Ed25519}},
+     \mathsf{Adv}_{\mathrm{ML\text{-}DSA}},
+     \mathsf{Adv}_{\mathrm{SLH\text{-}DSA}})$. Reduction: an
+$\mathcal{A}$ on $\Sigma_3$ produces, in particular, a forgery on
+the Ed25519 component, hence reduces to Ed25519's classical
+EU-CMA. Same argument for the PQ components.
+
+The minimum of one classical-PQ-impossible (Ed25519, $2^{128}$
+classical, broken by Shor) and two PQ-secure schemes is bounded
+\emph{quantum-classically}: under a quantum adversary $\mathcal{A}_Q$,
+$\mathsf{Adv}_{\mathrm{Ed25519}}^{\mathcal{A}_Q}$ is non-negligible
+(Shor breaks classical signatures), but
+$\mathsf{Adv}^{\mathrm{forge}}_{\Sigma_3,\mathcal{A}_Q}$ remains
+$\leq \min(\mathsf{Adv}_{\mathrm{ML\text{-}DSA},\mathcal{A}_Q},
+        \mathsf{Adv}_{\mathrm{SLH\text{-}DSA},\mathcal{A}_Q})
+= \mathsf{negl}(\lambda)$ because all three components must verify
+simultaneously.
+
+\paragraph{Conclusion.} The triple-hybrid identity sig is
+forwards-secure against quantum adversaries even though one of
+its components (Ed25519) is not.
+
+%% ==================================================================
+\section{Cross-references with LPs}
+\label{sec:lp-refs}
+%% ==================================================================
+
+\begin{itemize}[nosep]
+  \item LP-105 -- QuasarCert spec (Def.~6.1, Theorems 7.5--7.8).
+  \item LP-127 -- Attestation pre-compile.
+  \item LP-130 -- AI model registry contract layer.
+  \item LP-132 -- QuasarGPU verifier.
+  \item LP-134 -- Chain topology (A-Chain definition).
+  \item LP-137 -- GPU-residency invariant.
+\end{itemize}
+
+%% ==================================================================
+\section{Composition with Liquidity Protocol}
+\label{sec:lp-compose}
+%% ==================================================================
+
+The companion paper \cite{hanzo-adopts} adopts the Liquidity Protocol
+on 2026-04-20 for inference-receipt settlement. The composition is
+straightforward: an inference receipt that requires payment is
+settled via an OMA swap on Lux C-Chain. Theorem~\ref{thm:soundness}
+of this paper guarantees the receipt cannot be forged; the Liquidity
+Protocol's atomicity (\cite{lp-paper} \S5) guarantees the payment is
+either delivered or reverted; QuasarCert subject-binding
+(\cite{quasar-cert} Theorem 7.8) prevents replay.
+
+%% ==================================================================
+\section{Status}
+\label{sec:status}
+%% ==================================================================
+
+\begin{table}[h]
+\centering
+\caption{Hanzo AI Chain proof status, 2026-04-20}
+\begin{tabular}{lll}
+\toprule
+Lemma / Theorem & Status & Evidence \\
+\midrule
+QuasarCert soundness         & Machine-checked (Lean) & \cite{quasar-cert} \\
+Triple-hybrid sig            & Machine-checked (Lean) & Crypto/Hybrid.lean \\
+Model-hash binding           & Paper proof (this work) & \S\ref{sec:lemmas} \\
+Agent-DID binding            & Paper proof (this work) & \S\ref{sec:lemmas} \\
+TEE attestation              & LP-127 + vendor roots   & \cite{lp127} \\
+Receipt non-malleability     & Paper proof (this work) & \S\ref{sec:lemmas} \\
+Hanzo AI Chain soundness     & Paper proof (this work) & \S\ref{sec:soundness} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%% ==================================================================
+\begin{thebibliography}{9}
+
+\bibitem{quasar-cert}
+Z.~Kelling.
+\newblock QuasarCert Soundness: Canonical Formal Specification, Quasar 3.0.
+\newblock \texttt{luxfi/proofs/quasar-cert-soundness.tex}, 2025-12-15.
+
+\bibitem{taxonomy}
+Lux Industries.
+\newblock Lux Canonical Taxonomy.
+\newblock \texttt{luxfi/lps/TAXONOMY.md}.
+
+\bibitem{lp134}
+Lux Industries.
+\newblock LP-134 Lux Chain Topology.
+\newblock \texttt{luxfi/lps/LP-134-lux-chain-topology.md}, 2025-12-15.
+
+\bibitem{lp127}
+Lux Industries.
+\newblock LP-127 Attestation Pre-compile.
+\newblock \texttt{luxfi/lps/LP-127-attestation.md}.
+
+\bibitem{lp130}
+Lux Industries.
+\newblock LP-130 AI Model Registry.
+\newblock \texttt{luxfi/lps/LP-130-ai.md}.
+
+\bibitem{lp132}
+Lux Industries.
+\newblock LP-132 QuasarGPU Execution Adapter.
+\newblock \texttt{luxfi/lps/LP-132-quasar-gpu-execution-adapter.md}.
+
+\bibitem{lp137}
+Lux Industries.
+\newblock LP-137 GPU-Residency Invariant.
+\newblock \texttt{luxfi/lps/LP-137-gpu-residency-invariant.md}.
+
+\bibitem{lux-lean}
+Lux Industries.
+\newblock Lean 4 proof corpus.
+\newblock \texttt{luxfi/proofs/lean/}.
+
+\bibitem{lux-lean-hybrid}
+Lux Industries.
+\newblock Crypto/Hybrid.lean: triple-hybrid identity sig.
+\newblock \texttt{luxfi/proofs/lean/Crypto/Hybrid.lean}.
+
+\bibitem{nist-hash}
+NIST.
+\newblock FIPS 202: SHA-3 Standard.
+\newblock 2015.
+
+\bibitem{lp-paper}
+Liquidity.io.
+\newblock The Liquidity Protocol: Oracle-Mirrored AMM, v1.0.
+\newblock \texttt{liquidityio/proofs/liquidity-protocol/}, April 2026.
+
+\bibitem{hanzo-adopts}
+Hanzo AI.
+\newblock Hanzo Adopts the Liquidity Protocol.
+\newblock \texttt{hanzoai/proofs/hanzo-adopts-liquidity-protocol.tex}, 2026-04-20.
+
+\bibitem{hanzo-paper}
+Hanzo AI.
+\newblock Hanzo AI Chain (whitepaper).
+\newblock \texttt{hanzoai/papers/hanzo-ai-chain/}.
+
+\end{thebibliography}
+
+\end{document}

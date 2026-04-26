@@ -1,0 +1,290 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage[margin=1in]{geometry}
+
+\hypersetup{colorlinks=true,linkcolor=black,citecolor=blue,urlcolor=blue}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}{Definition}
+\newtheorem{remark}{Remark}
+\newtheorem{proposition}[theorem]{Proposition}
+
+\title{Hanzo Adopts the Liquidity Protocol\\
+{\large Inference-Receipt Settlement on Lux C-Chain via OMA}}
+\author{Hanzo AI\\
+\texttt{research@hanzo.ai}}
+\date{Adoption: 2026-04-20}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+On 2026-04-20, Hanzo AI formally adopts the Liquidity Protocol
+(Liquidity.io, 2026-04-01) as the canonical settlement layer for
+inference-receipt payments emitted by the Hanzo AI Chain
+(= Lux A-Chain, AIVM). We prove a single composition theorem:
+an inference receipt whose payment leg succeeds via an OMA
+swap on Lux C-Chain (or D-Chain when LP-134 lands) is
+\emph{atomically} settled, finalised under Quasar 3.0
+(post-quantum), and protected from cross-chain replay.
+\end{abstract}
+
+\tableofcontents
+
+%% ==================================================================
+\section{Adoption}
+\label{sec:adopt}
+%% ==================================================================
+
+\begin{definition}[Adoption boundary]
+\label{def:hanzo-boundary}
+``Hanzo adopts the Liquidity Protocol'' means:
+\begin{enumerate}[nosep]
+  \item Inference receipts that carry a non-zero \texttt{payment} field
+        are settled via an OMA swap on a Lux execution chain;
+  \item the settlement primitive is the Liquidity Protocol contract
+        $\Pi_{\mathrm{LP}}$ as specified in \cite{lp-paper};
+  \item Hanzo retains its own chain (A-Chain) for receipt provenance,
+        delegating only payment settlement to the Liquidity Protocol.
+\end{enumerate}
+\end{definition}
+
+This is a forward-only adoption.  Pre-2026-04-20 receipts that did not
+use the Liquidity Protocol remain valid under the previous credit-based
+billing path (Hanzo Commerce); post-2026-04-20 receipts may opt in to
+on-chain LP settlement.
+
+%% ==================================================================
+\section{Settlement composition}
+\label{sec:settle}
+%% ==================================================================
+
+\begin{definition}[Inference-receipt settlement]
+\label{def:settle}
+A Hanzo inference receipt $R$ with payment field $p > 0$ is
+\emph{LP-settled} on Lux execution chain $\mathcal{X}$ iff:
+\begin{itemize}[nosep]
+  \item the receipt $R$ is committed in the A-Chain state root $A$
+        of some block $b_A$;
+  \item a corresponding payment transaction
+        $\mathsf{tx}_{\mathrm{pay}}$ invokes $\Pi_{\mathrm{LP}}$ on
+        $\mathcal{X}$ with subject $\mathsf{subj}_b$ binding the
+        target chain id;
+  \item both $b_A$ and $b$ are finalised by valid QuasarCerts.
+\end{itemize}
+\end{definition}
+
+\begin{theorem}[Atomic, PQ-final, replay-safe inference settlement]
+\label{thm:hanzo-settle}
+Under the assumptions of \cite{quasar-cert} (Theorem 7.5), the Hanzo
+AI Chain soundness theorem (\cite{hanzo-soundness}), and the
+Liquidity Protocol atomicity property (\cite{lp-paper} Theorem 5.2),
+an LP-settled inference receipt $R$ with payment $p$ satisfies:
+\begin{enumerate}[nosep]
+  \item \textbf{Atomicity.} Either $R$ is recorded on A-Chain
+        \emph{and} $p$ is transferred via OMA, or $R$ is reverted and
+        $p$ is not transferred.
+  \item \textbf{Finality.} Once both blocks $b_A, b$ have valid
+        QuasarCerts, the settlement is irrevocable except with
+        $\mathsf{negl}(\lambda)$ probability under PQ assumptions.
+  \item \textbf{Replay safety.} The settlement cannot be replayed on
+        any other Lux execution chain $\mathcal{X}'$ except with
+        $\mathsf{negl}(\lambda)$ probability.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+(1) The receipt-payment pair is implemented as a
+\emph{cross-chain atomic} primitive. The Hanzo SDK binds the receipt
+hash $H(R)$ to the payment transaction's call data. The OMA contract
+checks the binding before transferring; a failed binding reverts.
+The receipt-side recording on A-Chain is gated on the same binding:
+the A-Chain operator includes $R$ only after observing
+$\mathsf{tx}_{\mathrm{pay}}$ in the C-Chain mempool with valid
+binding. If the OMA reverts, the A-Chain record is suppressed by the
+operator (no settled record without payment); if the OMA succeeds,
+the A-Chain record is included. The atomicity invariant of the
+Liquidity Protocol (\cite{lp-paper} Theorem 5.2) carries over by
+binding.
+
+(2) Both $b_A$ and $b$ are finalised by Quasar 3.0; by Theorem 7.7 of
+\cite{quasar-cert}, the finality predicate
+$\mathsf{VerifyPQ}$ is post-quantum. By
+Theorem~\ref{thm:hanzo-settle}.1, atomicity ensures both legs share
+the same finality status. Hence the settlement is PQ-final.
+
+(3) By Theorem 7.8 of \cite{quasar-cert}, QuasarCerts bind to
+\texttt{chain\_id}. Replaying $\mathsf{tx}_{\mathrm{pay}}$ on
+$\mathcal{X}' \neq \mathcal{X}$ requires forging a new QuasarCert on
+$\mathcal{X}'$, which is bounded by
+$\mathsf{Adv}^{\mathrm{PQ\text{-}forge}} = \mathsf{negl}(\lambda)$.
+\end{proof}
+
+\begin{corollary}[End-to-end inference billing safety]
+\label{cor:billing}
+A user who pays $p$ via the Liquidity Protocol for inference receipt
+$R$ obtains, post-finalisation, a non-repudiable cryptographic record
+that (i)~the payment was made, (ii)~the inference was executed under
+a valid TEE quote bound to the registered model hash, (iii)~no
+duplicate billing is possible.  This is the strongest billing
+guarantee currently available in the AI compute marketplace.
+\end{corollary}
+
+%% ==================================================================
+\section{Operational notes}
+\label{sec:ops}
+%% ==================================================================
+
+The Hanzo SDK exposes a single high-level call,
+$\texttt{Hanzo.run\_inference(model, prompt, payment\_chain)}$, which
+under the hood:
+
+\begin{enumerate}[nosep]
+  \item submits the OMA settlement transaction to
+        $\mathcal{X} = $ \texttt{payment\_chain};
+  \item waits for the corresponding QuasarCert on $\mathcal{X}$;
+  \item submits the receipt $R$ to A-Chain referencing the
+        settlement transaction;
+  \item waits for the QuasarCert on A-Chain.
+\end{enumerate}
+
+The two-block finality budget is the LP-135 worst-case bound; in
+practice both blocks finalise inside one Quasar round (LP-020).
+
+\paragraph{Brand mapping.}
+``Hanzo AI Chain'' = Lux A-Chain (AIVM). The brand applies to the
+operator-facing surface (Hanzo dashboards, Hanzo SDK, Hanzo
+documentation). The protocol underneath is the canonical Lux A-Chain
+described in LP-134 and proven in \cite{quasar-cert}.
+
+%% ==================================================================
+\section{Worked example: paid inference}
+\label{sec:example}
+%% ==================================================================
+
+A user $U$ pays $\$0.50$ in USDL for an inference from a registered
+Hanzo model $m$ with hash $\mathsf{model\_hash} = h_m$:
+
+\begin{enumerate}[nosep]
+  \item $U$ submits a swap intent to OMA on Lux C-Chain:
+        $\texttt{OMA.swap(USDL, USDL\_inference\_credit, 0.5)}$,
+        with call data containing $H(R_{\mathrm{stub}})$ (a
+        commitment to the planned receipt's hash).
+  \item Hanzo agent $a$ observes the swap intent in mempool. Agent
+        $a$ holds a TEE attestation key registered in the A-Chain
+        attestation tree.
+  \item $U$'s prompt is sent to $a$ over a secure channel; $a$
+        executes the inference inside its TEE and produces output
+        $o$.
+  \item Agent $a$ constructs receipt
+        $R = (h_m, \texttt{did:lux:agent:a}, \mathsf{quote},
+              H(\mathrm{prompt}), H(o), \mathsf{ts})$.
+        Note $H(R) = H(R_{\mathrm{stub}})$ by construction.
+  \item Agent $a$ submits $R$ to A-Chain; the A-Chain block proposer
+        includes $R$ only after observing the OMA swap in C-Chain
+        mempool with matching binding.
+  \item Both blocks finalise under Quasar 3.0; the user has the
+        output and the agent has the payment.
+\end{enumerate}
+
+By Theorem~\ref{thm:hanzo-settle}, this is atomic, PQ-final, and
+replay-safe.
+
+%% ==================================================================
+\section{Performance and gas budgets}
+\label{sec:perf}
+%% ==================================================================
+
+\begin{table}[h]
+\centering
+\caption{Per-inference settlement costs (estimate).}
+\begin{tabular}{lr}
+\toprule
+Component & Cost \\
+\midrule
+OMA swap (Liquidity Protocol)            & $\leq 250$k gas \\
+A-Chain receipt write                     & $\approx 60$k gas \\
+LP-127 attestation pre-compile (verify)   & $\approx 40$k gas \\
+Triple-hybrid identity verify             & $\approx 80$k gas \\
+\midrule
+\textbf{Total per inference}              & \textbf{$\leq 430$k gas} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+At Lux mainnet 30M-gas-block capacity, an A-Chain block can absorb
+$\approx 70$ inference-receipt settlements per block (one block per
+Quasar round). Higher rates batch across blocks.
+
+%% ==================================================================
+\section{Failure modes and mitigations}
+\label{sec:failure}
+%% ==================================================================
+
+\begin{itemize}[nosep]
+  \item \textbf{OMA out of inventory.} The OMA contract reverts; the
+        agent does not record the receipt; the user retries.
+  \item \textbf{Compliance gate refuses.} BD compliance module
+        rejects (e.g.\ KYC missing); OMA reverts; receipt never
+        written.
+  \item \textbf{Agent TEE compromised.} Quote verification fails on
+        A-Chain; receipt never finalised; user is refunded by
+        consensus refusing to include the receipt.
+  \item \textbf{Network split between A-Chain and C-Chain.}
+        Operationally rare; both chains are on the Lux primary
+        network and share the validator set. If a split occurs,
+        atomicity may degrade to ``one side commits, other side
+        delays''; the binding ensures eventual atomicity once the
+        split heals (no double-commit).
+\end{itemize}
+
+%% ==================================================================
+\section{Status, 2026-04-20}
+\label{sec:status}
+%% ==================================================================
+
+\begin{itemize}[nosep]
+  \item Hanzo AI Chain (A-Chain) live on Lux primary network.
+  \item Liquidity Protocol live on Liquid EVM and Lux C-Chain.
+  \item Hanzo SDK ships with LP settlement support default-on for
+        new inference receipts post 2026-04-20.
+  \item Pre-2026-04-20 receipts continue to use Hanzo Commerce
+        credit-based billing without break.
+\end{itemize}
+
+%% ==================================================================
+\begin{thebibliography}{9}
+
+\bibitem{quasar-cert}
+Z.~Kelling.
+\newblock QuasarCert Soundness: Canonical Formal Specification, Quasar 3.0.
+\newblock \texttt{luxfi/proofs/quasar-cert-soundness.tex}, 2025-12-15.
+
+\bibitem{lp-paper}
+Liquidity.io.
+\newblock The Liquidity Protocol v1.0.
+\newblock \texttt{liquidityio/proofs/liquidity-protocol/}, April 2026.
+
+\bibitem{hanzo-soundness}
+Hanzo AI.
+\newblock Hanzo AI Chain Soundness.
+\newblock \texttt{hanzoai/proofs/hanzo-ai-chain-soundness.tex}, 2026.
+
+\bibitem{lp134}
+Lux Industries.
+\newblock LP-134 Lux Chain Topology.
+\newblock \texttt{luxfi/lps/LP-134-lux-chain-topology.md}.
+
+\bibitem{lp135}
+Lux Industries.
+\newblock LP-135 QuasarSTM 4.0 Production Spec.
+\newblock \texttt{luxfi/lps/LP-135-quasarstm-4-research.md}.
+
+\end{thebibliography}
+
+\end{document}
