@@ -50,7 +50,6 @@ Canonical references:
 - `~/work/lux/lps/LP-130-ai.md`
 - `~/work/lux/lps/LP-134-lux-chain-topology.md`
 - `~/work/hanzo/papers/hanzo-ai-chain/hanzo-ai-chain.tex`
-- `~/work/liquidity/proofs/liquidity-protocol/liquidity-protocol.tex`
 
 ## Chronology
 
