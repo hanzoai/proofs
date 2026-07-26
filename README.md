@@ -1,3 +1,5 @@
+<p align="center"><img src=".github/hero.svg" alt="proofs" width="880"></p>
+
 # Hanzo Formal Proofs
 
 Machine-checked and paper proofs for Hanzo AI Chain (= Lux A-Chain
@@ -9,7 +11,6 @@ stack.
 | File | Topic | Status |
 |---|---|---|
 | `hanzo-ai-chain-soundness.tex` | A-Chain (AIVM) attestation pipeline soundness | paper |
-| `hanzo-adopts-liquidity-protocol.tex` | Hanzo formal adoption of the  (2026-04-20) | paper |
 | `lean/` | Lean 4 sources (shared with `luxfi/proofs/lean/`) | typecheck |
 
 ## Provenance
@@ -38,7 +39,6 @@ This repo adds AI-specific lemmas:
 ```bash
 cd lean && lake build           # Lean 4 (shared with luxfi/proofs)
 tectonic hanzo-ai-chain-soundness.tex
-tectonic hanzo-adopts-liquidity-protocol.tex
 ```
 
 ## Citations
