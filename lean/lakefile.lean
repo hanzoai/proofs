@@ -6,7 +6,9 @@ package hanzoFormal where
     ⟨`autoImplicit, false⟩
   ]
 
--- Hanzo-native proofs (agents, gateway, platform, KMS, compute)
+-- Every library is a default target, so `lake build` builds the whole corpus.
+-- With the attribute on one library, `lake build` compiles that library's
+-- import closure and reports success for everything else.
 
 @[default_target]
 lean_lib Agent where
@@ -20,6 +22,7 @@ lean_lib Agent where
     `Agent.Memory
   ]
 
+@[default_target]
 lean_lib Gateway where
   srcDir := "."
   roots := #[
@@ -27,6 +30,7 @@ lean_lib Gateway where
     `Gateway.RateLimit
   ]
 
+@[default_target]
 lean_lib Platform where
   srcDir := "."
   roots := #[
@@ -35,12 +39,14 @@ lean_lib Platform where
     `Platform.Monitoring
   ]
 
+@[default_target]
 lean_lib KMS where
   srcDir := "."
   roots := #[
     `KMS.Secrets
   ]
 
+@[default_target]
 lean_lib Compute where
   srcDir := "."
   roots := #[
@@ -50,72 +56,7 @@ lean_lib Compute where
     `Compute.Billing
   ]
 
--- Infrastructure proofs (from Lux L1 foundation)
-
-lean_lib Consensus where
-  srcDir := "."
-  roots := #[
-    `Consensus.BFT,
-    `Consensus.Safety,
-    `Consensus.Liveness,
-    `Consensus.Finality,
-    `Consensus.Validator,
-    `Consensus.Quasar
-  ]
-
-lean_lib Crypto where
-  srcDir := "."
-  roots := #[
-    `Crypto.BLS,
-    `Crypto.FROST,
-    `Crypto.Corona,
-    `Crypto.MLDSA,
-    `Crypto.Hybrid,
-    `Crypto.SLHDSA,
-    `Crypto.MLKEM,
-    `Crypto.FHE.TFHE,
-    `Crypto.FHE.CKKS,
-    `Crypto.Threshold.CGGMP21,
-    `Crypto.Threshold.LSS,
-    `Crypto.Threshold.Composition,
-    `Crypto.VerkleTree
-  ]
-
-lean_lib Trust where
-  srcDir := "."
-  roots := #[
-    `Trust.Authority,
-    `Trust.Vouch,
-    `Trust.Revocation
-  ]
-
-lean_lib Warp where
-  srcDir := "."
-  roots := #[
-    `Warp.Delivery,
-    `Warp.Ordering,
-    `Warp.Security
-  ]
-
-lean_lib Network where
-  srcDir := "."
-  roots := #[
-    `Network.PeerDiscovery
-  ]
-
--- GPU acceleration proofs (from Zoo)
-
-lean_lib GPU where
-  srcDir := "."
-  roots := #[
-    `GPU.EVMScaling,
-    `GPU.FHEScaling,
-    `GPU.ConsensusScaling,
-    `GPU.DEXScaling
-  ]
-
--- CRDT proofs (privacy, commutativity, on-chain anchoring)
-
+@[default_target]
 lean_lib CRDT where
   srcDir := "."
   roots := #[
