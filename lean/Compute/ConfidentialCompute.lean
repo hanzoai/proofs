@@ -80,16 +80,30 @@ theorem unattested_rejected (t : CCTask) (h : t.attestation.valid = false) :
     An attacker cannot substitute a different model or runtime. -/
 theorem measurement_binds_code (t : CCTask) (expected : Nat)
     (h : measurementMatches t expected = true) :
-    t.attestation.measurement == expected = true := by
-  simp [measurementMatches] at h; exact h
+    t.attestation.measurement = expected := by
+  simpa [measurementMatches] using h
 
-/-- ISOLATION: Data in enclave is inaccessible to host.
-    This is a hardware property (axiomatized). -/
+/-- Everything the host OS observes about a task from outside the
+    enclave boundary. -/
+opaque hostView : CCTask → Nat
+
+/-- ISOLATION: the host's view of an attested task is determined by the
+    attestation report and the workload type alone. Enclave memory — the
+    model, the inputs, the outputs — is not an input to it. This is the
+    hardware property, axiomatized. -/
 axiom enclave_isolation :
-  ∀ (t : CCTask), isAttested t = true →
-    -- Host OS cannot read enclave memory
-    -- (hardware-enforced, not software)
-    True
+  ∀ (t₁ t₂ : CCTask), isAttested t₁ = true → isAttested t₂ = true →
+    t₁.attestation = t₂.attestation → t₁.workload = t₂.workload →
+    hostView t₁ = hostView t₂
+
+/-- Two attested tasks differing only in the data sealed inside the
+    enclave are indistinguishable to the host. -/
+theorem host_reads_no_payload (t : CCTask) (model input output : Nat)
+    (h : isAttested t = true) :
+    hostView t =
+      hostView { t with modelHash := model, inputHash := input, outputHash := output } := by
+  refine enclave_isolation _ _ h ?_ rfl rfl
+  simpa [isAttested] using h
 
 /-- COMPOSITION: N independent enclaves compose safely.
     Enclave_i's security doesn't depend on Enclave_j. -/
@@ -99,13 +113,16 @@ theorem enclaves_compose (tasks : List CCTask)
   simp [List.all_eq_true] at h_all_attested
   exact h_all_attested
 
+/-- Serialized size of an attestation report: platform tag, measurement,
+    firmware version, report data. No field ranges over the computation. -/
+def Attestation.size (_a : Attestation) : Nat := 4
+
 /-- LOW OVERHEAD: Attestation is constant-size regardless of
-    computation length. One report per task, not per operation. -/
+    computation length. One report per task, not per operation —
+    two tasks consuming different compute carry the same report size. -/
 theorem attestation_constant_size (t1 t2 : CCTask)
-    (h : t1.computeUnits ≠ t2.computeUnits) :
-    -- Both have the same attestation structure
-    -- (measurement, firmware, reportData — no scaling with compute)
-    True := trivial
+    (_h : t1.computeUnits ≠ t2.computeUnits) :
+    t1.attestation.size = t2.attestation.size := rfl
 
 /-- NVIDIA CC SPECIFIC: Blackwell GPUs provide hardware-rooted
     attestation for H100/B200 tensor operations. -/

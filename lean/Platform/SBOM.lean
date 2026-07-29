@@ -57,15 +57,17 @@ theorem unattested_breaks (s : SBOMDoc) (d : DepEntry)
     (h_mem : d ∈ s.deps) (h_bad : d.attested = false) :
     fullyAttested s = false := by
   simp [fullyAttested, List.all_eq_true]
-  push_neg
-  exact ⟨d, h_mem, h_bad⟩
+  exact ⟨d, h_mem, by simp [h_bad]⟩
 
 /-- Adding an attested dep preserves full attestation -/
 theorem add_attested_preserves (s : SBOMDoc) (d : DepEntry)
     (h_full : fullyAttested s = true) (h_att : d.attested = true) :
     fullyAttested { s with deps := d :: s.deps } = true := by
-  simp [fullyAttested, List.all_cons, h_att]
-  exact h_full
+  simp only [fullyAttested, List.all_eq_true] at h_full ⊢
+  intro x hx
+  rcases List.mem_cons.mp hx with rfl | hx'
+  · exact h_att
+  · exact h_full x hx'
 
 /-- Dep count is monotone under addition -/
 theorem add_dep_increases (s : SBOMDoc) (d : DepEntry) :

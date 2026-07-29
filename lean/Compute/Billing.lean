@@ -55,25 +55,33 @@ theorem rate_limited (a : Account) (c : APICall)
     (h : a.callsThisSecond ≥ a.rateLimit) :
     executeCall a c = none := by
   simp [executeCall, Nat.not_lt.mpr h]
-  intro; exact Bool.and_false _
 
 /-- BALANCE CONSERVATION: balance + totalSpent is constant -/
 theorem balance_conservation (a a' : Account) (c : APICall)
     (h : executeCall a c = some a') :
     a'.balance + a'.totalSpent = a.balance + a.totalSpent := by
-  simp [executeCall] at h; split at h <;> simp_all; omega
+  simp [executeCall] at h
+  obtain ⟨⟨hcost, -⟩, rfl⟩ := h
+  show a.balance - c.cost + (a.totalSpent + c.cost) = a.balance + a.totalSpent
+  omega
 
 /-- BALANCE DECREASES: Each call reduces balance -/
 theorem balance_decreases (a a' : Account) (c : APICall)
     (h : executeCall a c = some a') (hc : c.cost > 0) :
     a'.balance < a.balance := by
-  simp [executeCall] at h; split at h <;> simp_all; omega
+  simp [executeCall] at h
+  obtain ⟨⟨hcost, -⟩, rfl⟩ := h
+  show a.balance - c.cost < a.balance
+  omega
 
 /-- SPEND MONOTONE: totalSpent only increases -/
 theorem spend_monotone (a a' : Account) (c : APICall)
     (h : executeCall a c = some a') :
     a'.totalSpent ≥ a.totalSpent := by
-  simp [executeCall] at h; split at h <;> simp_all; omega
+  simp [executeCall] at h
+  obtain ⟨-, rfl⟩ := h
+  show a.totalSpent + c.cost ≥ a.totalSpent
+  omega
 
 /-- FREE CALLS: Zero-cost calls don't reduce balance -/
 theorem free_call_preserves (a : Account) (c : APICall)

@@ -76,7 +76,7 @@ def recordCompute (n : Node) (units : Nat) : Node :=
 
 theorem compute_monotone (n : Node) (units : Nat) :
     (recordCompute n units).totalComputed ≥ n.totalComputed := by
-  simp [recordCompute]; omega
+  simp [recordCompute]
 
 /-- EMPTY SWARM HAS ZERO CAPACITY -/
 theorem empty_zero : activeCapacity ⟨[], 0, 0⟩ = 0 := rfl

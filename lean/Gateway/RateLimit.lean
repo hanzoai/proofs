@@ -49,18 +49,24 @@ theorem no_tokens_blocked (b : TokenBucket) (cost : Nat)
 /-- BURST: Bucket never exceeds capacity -/
 theorem refill_capped (b : TokenBucket) (seconds : Nat) :
     (refill b seconds).tokens ≤ b.capacity := by
-  simp [refill]; exact Nat.min_le_right _ _
+  simp [refill]
 
-/-- RECOVERY: Refill increases tokens -/
-theorem refill_increases (b : TokenBucket) (seconds : Nat) (h : seconds > 0)
-    (hb : b.tokens < b.capacity) :
+/-- RECOVERY: Refill never loses tokens, for any bucket at or under
+    capacity. The cap is what makes the bound need `hb`: a bucket already
+    over capacity would be clamped down by a refill. -/
+theorem refill_increases (b : TokenBucket) (seconds : Nat)
+    (hb : b.tokens ≤ b.capacity) :
     (refill b seconds).tokens ≥ b.tokens := by
-  simp [refill]; exact Nat.le_min (by omega) (by omega)
+  simp only [refill]
+  exact le_min (Nat.le_add_right _ _) hb
 
 /-- CONSUMPTION DECREASES: Using tokens reduces count -/
 theorem consume_decreases (b b' : TokenBucket) (cost : Nat)
     (h : tryConsume b cost = some b') (hc : cost > 0) :
     b'.tokens < b.tokens := by
-  simp [tryConsume] at h; split at h <;> simp_all; omega
+  simp [tryConsume] at h
+  obtain ⟨hcost, rfl⟩ := h
+  show b.tokens - cost < b.tokens
+  omega
 
 end Gateway.RateLimit

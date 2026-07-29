@@ -37,6 +37,7 @@ structure AccessPolicy where
   aiApproval : Bool        -- requires human approval for AI access
   rotationDays : Nat       -- auto-rotation interval
   auditRequired : Bool     -- must log every access
+  deriving Repr
 
 /-- Secret metadata (not the value itself!) -/
 structure SecretMeta where
@@ -72,7 +73,6 @@ theorem ai_needs_approval (req : AccessRequest)
     (h_no_approval : req.humanApproved = false) :
     isAccessAllowed req = false := by
   simp [isAccessAllowed, h_ai, h_policy, h_no_approval]
-  omega
 
 /-- Human access doesn't need AI approval flag -/
 theorem human_no_ai_check (req : AccessRequest)
@@ -104,7 +104,7 @@ theorem rotation_preserves_policy (s : SecretMeta) :
 /-- Version strictly increases on rotation -/
 theorem rotation_version_increases (s : SecretMeta) :
     (rotate s).version > s.version := by
-  simp [rotate]; omega
+  simp [rotate]
 
 /-- KEY HIERARCHY: Master key → derived keys.
     Compromising a derived key doesn't compromise the master. -/
@@ -113,12 +113,6 @@ structure KeyHierarchy where
   derivedKeys : List Nat
   derivationPath : Nat → String
 
-/-- DERIVED KEY ISOLATION: Each derived key is independent -/
-theorem derived_key_isolation (h : KeyHierarchy) (k1 k2 : Nat)
-    (h_diff : k1 ≠ k2)
-    (h_in1 : k1 ∈ h.derivedKeys) (h_in2 : k2 ∈ h.derivedKeys) :
-    k1 ≠ k2 := h_diff
-
 /-- Whether a key has been exported outside the HSM boundary -/
 axiom exported : Nat → Prop
 
@@ -126,6 +120,14 @@ axiom exported : Nat → Prop
     Master key never leaves the HSM boundary. -/
 axiom hsm_boundary :
   ∀ (h : KeyHierarchy), ¬ exported h.masterKeyId
+
+/-- DERIVED KEY ISOLATION: a leaked derived key does not breach the
+    master. Confinement of the master is an HSM property and takes no
+    argument from the state of any derived key — which is what the
+    unused hypotheses record. -/
+theorem derived_key_isolation (h : KeyHierarchy) (k : Nat)
+    (_derived : k ∈ h.derivedKeys) (_leaked : exported k) :
+    ¬ exported h.masterKeyId := hsm_boundary h
 
 /-- ZERO TRUST: Every access is authenticated + authorized + logged.
     No implicit trust based on network position. -/

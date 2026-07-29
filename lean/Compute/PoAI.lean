@@ -76,16 +76,30 @@ theorem low_quality_no_mining (p : ComputeProof) (rate : Nat)
     (h : p.qualityScore < miningThreshold) :
     miningReward p rate = 0 := by
   simp [miningReward, isMineable, Nat.not_le.mpr h]
-  split <;> simp_all
 
 /-- ACCRETIVE: Mining rewards are non-negative -/
 theorem mining_nonneg (p : ComputeProof) (rate : Nat) :
     miningReward p rate ≥ 0 := Nat.zero_le _
 
-/-- REWARD BOUNDED: Reward scales with compute, never exceeds it -/
-theorem reward_bounded (p : ComputeProof) (rate : Nat) (h : rate ≤ 1000) :
+/-- REWARD BOUNDED: Reward scales with compute, never exceeds it.
+    Requires both scaling factors to be in range: the reward rate at or
+    below 1000 and the quality score at or below its 1000-basis-point
+    maximum, which is what the 1000000 divisor in `miningReward`
+    normalizes against. -/
+theorem reward_bounded (p : ComputeProof) (rate : Nat)
+    (h : rate ≤ 1000) (hq : p.qualityScore ≤ 1000) :
     miningReward p rate ≤ p.computeUnits := by
-  simp [miningReward]; split <;> omega
+  unfold miningReward
+  split
+  · have hrq : rate * p.qualityScore ≤ 1000000 :=
+      le_trans (Nat.mul_le_mul h hq) (by norm_num)
+    have hbound : p.computeUnits * rate * p.qualityScore ≤ p.computeUnits * 1000000 := by
+      rw [mul_assoc]
+      exact Nat.mul_le_mul (le_refl _) hrq
+    calc p.computeUnits * rate * p.qualityScore / 1000000
+        ≤ p.computeUnits * 1000000 / 1000000 := Nat.div_le_div_right hbound
+      _ = p.computeUnits := by omega
+  · exact Nat.zero_le _
 
 -- ═══════════════════════════════════════════════════════════════
 -- TELEPORT (CROSS-CHAIN) THEOREMS
@@ -103,12 +117,21 @@ structure TeleportOp where
 def teleportValid (t : TeleportOp) : Bool :=
   t.bridgeSigs ≥ t.bridgeThreshold && t.amount > 0
 
+/-- Apply a teleport to the supply: a valid teleport moves `amount` into
+    the wrapped representation held on other chains. An invalid one is a
+    no-op. Neither branch touches `hanzoMinted`. -/
+def applyTeleport (supply : AISupply) (t : TeleportOp) : AISupply :=
+  if teleportValid t then
+    { supply with totalTeleported := supply.totalTeleported + t.amount }
+  else supply
+
 /-- CONSERVATION: Teleport preserves total supply.
-    Burn on source = mint on dest. No net creation. -/
-theorem teleport_conservation (supply : AISupply) (t : TeleportOp)
-    (h : teleportValid t = true) :
-    -- hanzoMinted stays the same (burn + mint cancel out)
-    supply.hanzoMinted = supply.hanzoMinted := rfl
+    Burn on source = mint on dest, so the canonical mint count is
+    untouched by any teleport, valid or not. -/
+theorem teleport_conservation (supply : AISupply) (t : TeleportOp) :
+    (applyTeleport supply t).hanzoMinted = supply.hanzoMinted := by
+  unfold applyTeleport
+  split <;> rfl
 
 /-- THRESHOLD: Teleport requires bridge signatures -/
 theorem teleport_needs_threshold (t : TeleportOp)
@@ -116,10 +139,18 @@ theorem teleport_needs_threshold (t : TeleportOp)
     teleportValid t = false := by
   simp [teleportValid, Nat.not_le.mpr h]
 
+/-- A supply is well formed when everything teleported out and everything
+    burned was minted on the canonical chain first. This is the invariant
+    the bridge maintains; it does not hold of an arbitrary record. -/
+def wellFormed (supply : AISupply) : Prop :=
+  supply.totalTeleported + supply.burned ≤ supply.hanzoMinted
+
 /-- CANONICAL ROOT: All $AI originates from hanzo.network.
-    Teleported $AI is a wrapped representation on other chains. -/
-theorem canonical_root (supply : AISupply) :
+    Teleported $AI is a wrapped representation on other chains, so it is
+    bounded by what the canonical chain minted and still holds. -/
+theorem canonical_root (supply : AISupply) (wf : wellFormed supply) :
     supply.totalTeleported ≤ supply.hanzoMinted - supply.burned := by
+  unfold wellFormed at wf
   omega
 
 /-- ZERO AMOUNT REJECTED -/

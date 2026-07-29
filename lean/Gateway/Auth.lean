@@ -40,8 +40,9 @@ inductive Protection where
 /-- Auth check (axiomatized — real impl is in hanzo/gateway) -/
 axiom verifyToken : Nat → AuthResult
 
-/-- Check if a request is authorized for a route -/
-def checkAuth (req : Request) (prot : Protection) : AuthResult :=
+/-- Check if a request is authorized for a route.
+    Noncomputable: `verifyToken` is axiomatized, so this has no code to run. -/
+noncomputable def checkAuth (req : Request) (prot : Protection) : AuthResult :=
   match prot with
   | .public_ => .authorized []
   | .authenticated =>

@@ -45,9 +45,8 @@ theorem submit_bumps (s s' : Store) (app : App) (h : Height) (root : Root)
     (ok : submit s app h root = some s') :
     s'.latest app = h ∧ h > s.latest app := by
   simp [submit] at ok
-  split at ok
-  · obtain ⟨rfl⟩ := ok; simp; assumption
-  · simp at ok
+  obtain ⟨hlt, rfl⟩ := ok
+  exact ⟨by simp, hlt⟩
 
 /-- Heights at or below the current latest are rejected.
     An attacker cannot rewrite an earlier root without a chain reorg. -/
@@ -63,9 +62,8 @@ theorem read_after_write (s s' : Store) (app : App) (h : Height) (root : Root)
     (ok : submit s app h root = some s') :
     get s' app h = some root := by
   simp [submit] at ok
-  split at ok
-  · obtain ⟨rfl⟩ := ok; simp [get]
-  · simp at ok
+  obtain ⟨-, rfl⟩ := ok
+  simp [get]
 
 /-- Submitting for one app does not affect another app's anchors.
     Each app's data is fully isolated even though they share a
@@ -74,8 +72,7 @@ theorem apps_isolated (s s' : Store) (a₁ a₂ : App) (h₁ h₂ : Height) (roo
     (ne : a₁ ≠ a₂) (ok : submit s a₁ h₁ root = some s') :
     get s' a₂ h₂ = get s a₂ h₂ := by
   simp [submit] at ok
-  split at ok
-  · obtain ⟨rfl⟩ := ok; simp [get, ne]
-  · simp at ok
+  obtain ⟨-, rfl⟩ := ok
+  simp [get, ne, Ne.symm ne]
 
 end CRDT.Anchor
