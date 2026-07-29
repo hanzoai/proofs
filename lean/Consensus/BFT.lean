@@ -21,7 +21,7 @@
   because that would require 2*alpha > 2*(2k/3) = 4k/3 > k total votes.
 -/
 
-import Mathlib.Data.Nat.Basic
+import Mathlib.Data.Nat.Defs
 import Mathlib.Tactic
 
 namespace Consensus.BFT

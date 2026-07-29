@@ -21,7 +21,7 @@
   - Quorum: 2f+1 valid signatures from n=3f+1 validators
 -/
 
-import Mathlib.Data.Nat.Basic
+import Mathlib.Data.Nat.Defs
 import Mathlib.Tactic
 
 namespace Crypto.BLS

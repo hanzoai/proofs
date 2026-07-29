@@ -16,7 +16,7 @@
   - Threshold: t-of-n decryption with partial shares
 -/
 
-import Mathlib.Data.Nat.Basic
+import Mathlib.Data.Nat.Defs
 import Mathlib.Tactic
 
 namespace Crypto.FHE.TFHE

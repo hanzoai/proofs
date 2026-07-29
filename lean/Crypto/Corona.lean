@@ -24,7 +24,7 @@
   - Threshold: t-of-n sharing
 -/
 
-import Mathlib.Data.Nat.Basic
+import Mathlib.Data.Nat.Defs
 import Mathlib.Tactic
 
 namespace Crypto.Corona

@@ -17,7 +17,7 @@
   Author: Zach Kelling
 -/
 
-import Mathlib.Data.Nat.Basic
+import Mathlib.Data.Nat.Defs
 import Mathlib.Tactic
 
 namespace Network.PeerDiscovery

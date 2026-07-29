@@ -20,7 +20,7 @@
 -/
 
 import Mathlib.Data.Finset.Basic
-import Mathlib.Data.Nat.Basic
+import Mathlib.Data.Nat.Defs
 import Mathlib.Tactic
 
 namespace Consensus.Liveness

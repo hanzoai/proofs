@@ -18,7 +18,7 @@
   - Robustness: t honest signers always produce valid output
 -/
 
-import Mathlib.Data.Nat.Basic
+import Mathlib.Data.Nat.Defs
 import Mathlib.Tactic
 
 namespace Crypto.FROST

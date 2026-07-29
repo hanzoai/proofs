@@ -15,7 +15,7 @@
   - Homomorphic: f(share(a)) + f(share(b)) = f(share(a+b))
 -/
 
-import Mathlib.Data.Nat.Basic
+import Mathlib.Data.Nat.Defs
 import Mathlib.Data.List.Basic
 import Mathlib.Tactic
 

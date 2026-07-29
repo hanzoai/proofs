@@ -21,7 +21,7 @@
   - Composable security: UC-framework composition theorem
 -/
 
-import Mathlib.Data.Nat.Basic
+import Mathlib.Data.Nat.Defs
 import Mathlib.Tactic
 
 namespace Crypto.Threshold.Composition

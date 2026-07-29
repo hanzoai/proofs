@@ -16,7 +16,7 @@
   - Replay protection: messages carry source chain + nonce
 -/
 
-import Mathlib.Data.Nat.Basic
+import Mathlib.Data.Nat.Defs
 import Mathlib.Tactic
 
 namespace Warp.Security

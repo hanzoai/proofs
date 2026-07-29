@@ -21,7 +21,7 @@
   - Quantum-safe: even if BLS breaks, Corona certificates hold
 -/
 
-import Mathlib.Data.Nat.Basic
+import Mathlib.Data.Nat.Defs
 import Mathlib.Tactic
 
 namespace Consensus.Quasar
