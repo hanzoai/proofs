@@ -1,7 +1,7 @@
 {
   "name": "@hanzo/proofs-site",
   "version": "1.0.0",
-  "description": "Hanzo AI formal proofs - proofs.hanzo.network",
+  "description": "Hanzo AI formal proofs - proofs.hanzo.ai",
   "private": true,
   "scripts": {
     "dev": "next dev",
