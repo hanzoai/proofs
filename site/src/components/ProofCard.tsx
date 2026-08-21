@@ -94,7 +94,7 @@ export function ProofCard({ proof }: ProofCardProps) {
             {proof.relatedPapers.map((paper, i) => (
               <a
                 key={i}
-                href={`https://papers.hanzo.network`}
+                href="https://papers.hanzo.ai"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"

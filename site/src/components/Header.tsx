@@ -26,7 +26,7 @@ export function Header({ config }: HeaderProps) {
           <div className="flex items-center gap-4">
             <nav className="hidden md:flex items-center gap-5 text-sm">
               <a
-                href="https://papers.hanzo.network"
+                href="https://papers.hanzo.ai"
                 className="text-muted-foreground hover:text-foreground transition-colors"
               >
                 Papers
@@ -63,11 +63,23 @@ export function Header({ config }: HeaderProps) {
   )
 }
 
+// The Hanzo mark, same geometry as public/favicon.svg so the header and the
+// browser tab show one shape. Source: @hanzo/brand assets/logo/favicon.svg.
 function Logo() {
   return (
-    <svg viewBox="0 0 100 100" className="w-7 h-7" xmlns="http://www.w3.org/2000/svg">
-      <rect x="10" y="10" width="80" height="80" rx="8" fill="currentColor" className="text-foreground" />
-      <path d="M30 70 L50 30 L70 70" stroke="currentColor" strokeWidth="6" fill="none" className="text-background" />
+    <svg
+      viewBox="0 0 67 67"
+      className="w-7 h-7 text-foreground"
+      fill="currentColor"
+      role="img"
+      aria-label="Hanzo"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M22.21 67V44.6369H0V67H22.21Z" />
+      <path d="M66.7038 22.3184H22.2534L0.0878906 44.6367H44.4634L66.7038 22.3184Z" />
+      <path d="M22.21 0H0V22.3184H22.21V0Z" />
+      <path d="M66.7198 0H44.5098V22.3184H66.7198V0Z" />
+      <path d="M66.7198 67V44.6369H44.5098V67H66.7198Z" />
     </svg>
   )
 }

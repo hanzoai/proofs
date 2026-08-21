@@ -17,12 +17,23 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://proofs.hanzo.ai'),
   title: `${siteConfig.name} Formal Proofs`,
   description: siteConfig.description,
+  // Both files are the Hanzo mark from @hanzo/brand, copied into public/. The
+  // .ico is here because a browser asks for /favicon.ico whether or not a page
+  // declares one, and this export has no server to answer that with anything
+  // else.
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: '48x48' },
+    ],
+  },
   openGraph: {
     title: `${siteConfig.name} Formal Proofs`,
     description: siteConfig.description,
-    url: 'https://proofs.hanzo.network',
+    url: 'https://proofs.hanzo.ai',
     siteName: `${siteConfig.name} Proofs`,
     type: 'website',
   },
