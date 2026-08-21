@@ -26,5 +26,10 @@ COPY site/ ./
 ENV NODE_OPTIONS=--max-old-space-size=4096
 RUN npm run build
 
-FROM ghcr.io/hanzoai/static:v0.5.1
+# v0.5.1 answered `max-age=86400` to every request, the document included, so a
+# browser that had seen this site once did not ask again for a day and the next
+# publish reached nobody — indistinguishable from a deploy that failed. v0.5.8 is
+# where the policy arrived that tells the two apart: content-addressed `_next/`
+# assets immutable, the document `no-cache`.
+FROM ghcr.io/hanzoai/static:v0.5.9
 COPY --from=build /app/out /public
