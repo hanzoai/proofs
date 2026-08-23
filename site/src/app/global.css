@@ -4,12 +4,15 @@
  */
 
 @import "tailwindcss";
+/* Zen's two variable faces, self-hosted. Only the faces — the colour tokens
+   below are this site's own. */
+@import "@hanzo/design/tokens/fonts.css";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: var(--font-geist), system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-sans: "Zen", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Zen Mono", ui-monospace, monospace;
   --radius: 0.5rem;
 
   --color-background: hsl(var(--background));
