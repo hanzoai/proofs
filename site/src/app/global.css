@@ -91,3 +91,14 @@
     background: rgba(255, 255, 255, 0.20);
   }
 }
+
+/* Two places the token above cannot reach on its own. Form controls do not
+   inherit font-family — the UA sheet pins them to a system face — and the UA
+   also gives code, pre, kbd and samp its own monospace default. Stated once,
+   as the two families this site has. */
+button, input, textarea, select, optgroup {
+  font-family: var(--font-sans);
+}
+code, pre, kbd, samp {
+  font-family: var(--font-mono);
+}
