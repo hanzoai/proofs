@@ -15,7 +15,7 @@
   - Scoped: agent can only access its own memories
   - Content-addressed: deduplication by hash
 
-  Author: Zach Kelling, Woo Bin
+  Author: Hanzo AI Research, Woo Bin
 -/
 
 import Mathlib.Data.Nat.Defs
