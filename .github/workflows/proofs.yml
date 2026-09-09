@@ -10,7 +10,7 @@ on:
     branches: [main]
     paths:
       - 'lean/**'
-      - '.hanzo/workflows/proofs.yml'
+      - '.github/workflows/proofs.yml'
   workflow_dispatch:
 
 concurrency:
