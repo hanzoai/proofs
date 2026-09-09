@@ -31,5 +31,5 @@ RUN npm run build
 # publish reached nobody — indistinguishable from a deploy that failed. v0.5.8 is
 # where the policy arrived that tells the two apart: content-addressed `_next/`
 # assets immutable, the document `no-cache`.
-FROM ghcr.io/hanzoai/static:v0.5.9
+FROM ghcr.io/hanzoai/static:0.5.15
 COPY --from=build /app/out /public
